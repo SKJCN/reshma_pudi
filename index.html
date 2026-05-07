@@ -545,35 +545,8 @@ main { padding: 0 12px 50px; }
    Add PDF links here. Format:
    { YYYY: { "MonthName": "https://raw.githubusercontent.com/..." } }
 ══════════════════════════════════════════════════════ */
-const notAvailable = {
-  2024: ["September", "December"],
-  2025: ["July", "August"],
-};
-
-const invoiceData = {
-  2024: {
-    January:   "https://github.com/your-repo/invoices/raw/main/2024/Jan-2024.pdf",
-    February:  "https://github.com/your-repo/invoices/raw/main/2024/Feb-2024.pdf",
-    March:     "https://github.com/your-repo/invoices/raw/main/2024/Mar-2024.pdf",
-    April:     "https://github.com/your-repo/invoices/raw/main/2024/Apr-2024.pdf",
-    May:       "https://github.com/your-repo/invoices/raw/main/2024/May-2024.pdf",
-    June:      "https://github.com/your-repo/invoices/raw/main/2024/Jun-2024.pdf",
-    July:      "https://github.com/your-repo/invoices/raw/main/2024/Jul-2024.pdf",
-    August:    "https://github.com/your-repo/invoices/raw/main/2024/Aug-2024.pdf",
-    October:   "https://github.com/your-repo/invoices/raw/main/2024/Oct-2024.pdf",
-    November:  "https://github.com/your-repo/invoices/raw/main/2024/Nov-2024.pdf",
-  },
-  2025: {
-    January:   "https://github.com/your-repo/invoices/raw/main/2025/Jan-2025.pdf",
-    February:  "https://github.com/your-repo/invoices/raw/main/2025/Feb-2025.pdf",
-    March:     "https://github.com/your-repo/invoices/raw/main/2025/Mar-2025.pdf",
-    April:     "https://github.com/your-repo/invoices/raw/main/2025/Apr-2025.pdf",
-    May:       "https://github.com/your-repo/invoices/raw/main/2025/May-2025.pdf",
-  },
-  2026: {
-    January:   "https://github.com/your-repo/invoices/raw/main/2026/Jan-2026.pdf",
-  }
-};
+// invoiceData is built dynamically from reshma.json after fetch
+let invoiceData = {};
 
 /* ══ CLOCK ══════════════════════════════════════════════ */
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -664,37 +637,41 @@ function renderTable(newConnectionDate) {
   const tbody = document.getElementById('invoiceBody');
   const empty = document.getElementById('emptyState');
   const table = document.getElementById('invoiceTable');
-  const data  = invoiceData[selectedYear] || {};
+  const yearData = invoiceData[selectedYear] || {};
 
   tbody.innerHTML = '';
   table.style.display = '';
   empty.style.display = 'none';
 
   const now = new Date();
-  const currentYear      = now.getFullYear();
-  const currentMonthIdx  = now.getMonth();
+  const currentYear     = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
 
-  // Parse new connection date from JSON (format: "YYYY-MM-DD")
-  const ncDate  = newConnectionDate ? new Date(newConnectionDate) : new Date('2022-01-01');
+  const ncDate = newConnectionDate ? new Date(newConnectionDate) : new Date('2022-01-01');
   const NEW_CONNECTION_YEAR  = ncDate.getFullYear();
   const NEW_CONNECTION_MONTH = ncDate.getMonth(); // 0-based
 
+  // Short month prefixes to match JSON keys like "jan_2024_invoice"
+  const MONTH_KEYS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
   MONTHS.forEach((month, idx) => {
-    const link = data[month];
-    const tr   = document.createElement('tr');
+    // Look up value from JSON: e.g. "jan_2024_invoice"
+    const jsonKey = `${MONTH_KEYS[idx]}_${selectedYear}_invoice`;
+    const rawVal  = yearData[jsonKey];  // URL | "no" | "" | undefined
+
+    const tr = document.createElement('tr');
 
     let dotClass = '';
-    if (selectedYear < currentYear)      dotClass = '';
-    else if (selectedYear > currentYear) dotClass = 'dot-future';
+    if (selectedYear < currentYear)       dotClass = '';
+    else if (selectedYear > currentYear)  dotClass = 'dot-future';
     else {
-      if (idx < currentMonthIdx)      dotClass = '';
-      else if (idx === currentMonthIdx) dotClass = 'dot-live';
-      else                              dotClass = 'dot-future';
+      if (idx < currentMonthIdx)          dotClass = '';
+      else if (idx === currentMonthIdx)   dotClass = 'dot-live';
+      else                                dotClass = 'dot-future';
     }
 
     const isPast = selectedYear < currentYear ||
       (selectedYear === currentYear && idx < currentMonthIdx);
-    const isCurrentMonth = selectedYear === currentYear && idx === currentMonthIdx;
 
     const newConnectionBadge =
       (selectedYear === NEW_CONNECTION_YEAR && idx === NEW_CONNECTION_MONTH)
@@ -705,29 +682,23 @@ function renderTable(newConnectionDate) {
       selectedYear < NEW_CONNECTION_YEAR ||
       (selectedYear === NEW_CONNECTION_YEAR && idx < NEW_CONNECTION_MONTH);
 
-    const isNotAvailable = (notAvailable[selectedYear] || []).includes(month);
-
     let rightCell = '';
 
     if (beforeNewConnection) {
+      // Before customer joined — show nothing
       rightCell = '';
-    } else if (isNotAvailable) {
-      rightCell = `<div class="not-available-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-        </svg>
-        Not Available
-      </div>`;
-    } else if (link) {
-      rightCell = `<a class="download-btn" href="${link}" target="_blank" download>
+    } else if (rawVal && rawVal.trim().toLowerCase() !== 'no' && rawVal.trim() !== '') {
+      // A real URL — show Download PDF button
+      const url = rawVal.trim();
+      rightCell = `<a class="download-btn" href="${url}" target="_blank" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
         </svg>
         Download PDF
       </a>`;
-    } else if (!link && isPast && selectedYear > NEW_CONNECTION_YEAR) {
+    } else if (rawVal !== undefined && rawVal.trim().toLowerCase() === 'no') {
+      // Explicitly "no" — Discontinued
       rightCell = `<div class="discontinued-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
           <path stroke-linecap="round" stroke-linejoin="round"
@@ -735,6 +706,17 @@ function renderTable(newConnectionDate) {
         </svg>
         Discontinued
       </div>`;
+    } else if (rawVal === undefined || rawVal.trim() === '') {
+      // Key absent or empty string — Not Available (only for past/current months)
+      if (isPast || (selectedYear === currentYear && idx === currentMonthIdx)) {
+        rightCell = `<div class="not-available-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+          </svg>
+          Not Available
+        </div>`;
+      }
     }
 
     tr.innerHTML = `
@@ -751,8 +733,8 @@ function renderTable(newConnectionDate) {
 }
 
 /* ══ LOAD FROM reshma.json & INIT ═══════════════════════
-   All customer fields come from the JSON file.
-   Only invoiceData above needs manual updating.
+   All customer fields AND invoice data come from reshma.json.
+   Invoice keys format: jan_2024_invoice, feb_2025_invoice ...
 ═══════════════════════════════════════════════════════ */
 fetch('reshma.json')
   .then(res => {
@@ -818,6 +800,22 @@ fetch('reshma.json')
     } else {
       renewalEl.style.color = 'var(--muted)'; // grey — plan expired
     }
+
+    // Build invoiceData from JSON keys like "jan_2024_invoice"
+    invoiceData = {};
+    const MONTH_KEYS_BUILD = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    Object.keys(data).forEach(key => {
+      const match = key.match(/^([a-z]{3})_(\d{4})_invoice$/);
+      if (match) {
+        const monthIdx = MONTH_KEYS_BUILD.indexOf(match[1]);
+        const year     = parseInt(match[2], 10);
+        const fullMonth = ["January","February","March","April","May","June",
+                           "July","August","September","October","November","December"][monthIdx];
+        if (!invoiceData[year]) invoiceData[year] = {};
+        // Store with both the full month name key AND the short key for renderTable lookup
+        invoiceData[year][`${match[1]}_${year}_invoice`] = data[key];
+      }
+    });
 
     // Year filter & table
     const ncYear = data.newConnectionDate ? new Date(data.newConnectionDate).getFullYear() : null;
