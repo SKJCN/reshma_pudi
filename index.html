@@ -469,7 +469,7 @@ main { padding: 0 12px 50px; }
     <div class="address">
       <span>Srikalahasti, AP</span>
       <span>India</span>
-      <span>📞 9908624367 &nbsp;|&nbsp; 6302787044</span>
+      <span>9908624367 &nbsp;|&nbsp; 6302787044</span>
     </div>
     <div class="clock" id="clock"><span id="clockDate"></span><span class="clock-sep">&mdash;</span><span id="clockTime"></span></div>
   </div>
@@ -780,14 +780,24 @@ fetch('reshma.json')
     document.getElementById('renewalDate').textContent = fmtDate(renewal);
     document.getElementById('expiredDate').textContent = fmtDate(expired);
 
-    // Days remaining
+    // Days remaining — orange threshold depends on plan duration
     const today = new Date();
     today.setHours(0,0,0,0);
     expired.setHours(0,0,0,0);
+    renewal.setHours(0,0,0,0);
     const diffMs   = expired - today;
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    // Determine orange warning window based on plan duration
+    let orangeDays;
+    if      (dur <= 30)  orangeDays = 3;
+    else if (dur <= 60)  orangeDays = 5;
+    else if (dur <= 100) orangeDays = 7;
+    else if (dur <= 210) orangeDays = 10;
+    else                 orangeDays = 15; // 360+ days
+
     const drEl = document.getElementById('daysRemaining');
-    if (diffDays > 7) {
+    if (diffDays > orangeDays) {
       drEl.textContent = `${diffDays} days remaining`;
       drEl.className = 'days-remaining days-green';
     } else if (diffDays > 0) {
@@ -799,6 +809,14 @@ fetch('reshma.json')
     } else {
       drEl.textContent = `Expired ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'} ago`;
       drEl.className = 'days-remaining days-red';
+    }
+
+    // Renewal date color: green while within active period, grey after expiry
+    const renewalEl = document.getElementById('renewalDate');
+    if (today <= expired) {
+      renewalEl.style.color = '#16a34a'; // green — plan still active
+    } else {
+      renewalEl.style.color = 'var(--muted)'; // grey — plan expired
     }
 
     // Year filter & table
