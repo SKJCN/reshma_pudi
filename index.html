@@ -127,17 +127,21 @@ color: #93b4e8;
 font-weight: 500;
 font-variant-numeric: tabular-nums;
 }
-.clock-colon {
-transition: opacity 0.2s;
+.clock-sep {
 display: inline-block;
-position: relative;
-top: -2px;
-line-height: 1;
-margin: 0 3px;
+margin: 0 6px;
+color: #93b4e8;
+font-weight: 300;
 }
 .clock-unit {
 display: inline-block;
 letter-spacing: 0;
+}
+.clock-ampm {
+font-size: 11px;
+margin-left: 3px;
+letter-spacing: 1px;
+text-transform: uppercase;
 }
 .header-link {
 text-decoration: none;
@@ -217,6 +221,14 @@ color: var(--navy);
 font-family: 'Nunito', sans-serif;
 }
 .info-expired { color: #dc2626; }
+.days-remaining {
+font-size: 12px;
+font-weight: 600;
+margin-top: 4px;
+}
+.days-green  { color: #16a34a; }
+.days-orange { color: #d97706; }
+.days-red    { color: #dc2626; }
 .card {
 background: var(--white);
 border-radius: var(--radius);
@@ -395,24 +407,9 @@ color: var(--muted);
 }
 .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: .4; }
 .empty-state p { font-size: 15px; }
-.railwire-block, .brand-block { opacity: 0; }
+.railwire-block, .brand-block { opacity: 1; }
 .railwire-block .brand-label, .brand-block .brand-label {
-opacity: 0;
-transition: opacity 0.4s ease 0s;
-}
-.railwire-block.animate { animation: slideFromRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.brand-block.animate { animation: slideFromLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.railwire-block.animate .brand-label, .brand-block.animate .brand-label {
 opacity: 1;
-transition: opacity 0.4s ease 0.65s;
-}
-@keyframes slideFromRight {
-from { opacity: 0; transform: translateX(20px); }
-to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes slideFromLeft {
-from { opacity: 0; transform: translateX(-20px); }
-to   { opacity: 1; transform: translateX(0); }
 }
 footer { text-align: center; padding: 20px 20px 28px; }
 .footer-brand {
@@ -472,8 +469,9 @@ main { padding: 0 12px 50px; }
     <div class="address">
       <span>Srikalahasti, AP</span>
       <span>India</span>
+      <span>📞 9908624367 &nbsp;|&nbsp; 6302787044</span>
     </div>
-    <div class="clock" id="clock"><span id="clockDate"></span><span id="clockTime"></span></div>
+    <div class="clock" id="clock"><span id="clockDate"></span><span class="clock-sep">&mdash;</span><span id="clockTime"></span></div>
   </div>
 </header>
 
@@ -503,6 +501,7 @@ main { padding: 0 12px 50px; }
       <div class="info-item">
         <span class="info-label">Expired Date</span>
         <span class="info-value info-expired" id="expiredDate">—</span>
+        <span class="days-remaining" id="daysRemaining"></span>
       </div>
     </div>
   </div>
@@ -582,17 +581,17 @@ const SHORT_DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function updateClock() {
   const now = new Date();
-  const h = String(now.getHours()).padStart(2,'0');
+  let h = now.getHours();
   const m = String(now.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const hStr = String(h).padStart(2,'0');
   const day  = SHORT_DAYS[now.getDay()];
   const date = now.getDate();
   const mon  = SHORT_MONTHS[now.getMonth()];
-  const colon = now.getSeconds() % 2 === 0
-    ? '<span class="clock-colon">:</span>'
-    : '<span class="clock-colon" style="opacity:0;">:</span>';
-  document.getElementById('clockDate').innerHTML = `${day}, ${date} ${mon}&nbsp;&nbsp;&nbsp;`;
+  document.getElementById('clockDate').innerHTML = `${day}, ${date} ${mon}`;
   document.getElementById('clockTime').innerHTML =
-    `<span class="clock-unit">${h}</span>${colon}<span class="clock-unit">${m}</span>`;
+    `<span class="clock-unit">${hStr}</span>:<span class="clock-unit">${m}</span><span class="clock-ampm">${ampm}</span>`;
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -613,9 +612,9 @@ const MONTHS = [
   "July","August","September","October","November","December"
 ];
 
-function buildYears(newConnectionYear) {
+function buildYears(ncYear) {
   const currentYear = new Date().getFullYear();
-  const startYear   = newConnectionYear || 2022;
+  const startYear   = ncYear || 2022;
   const years = [];
   for (let y = startYear; y <= currentYear; y++) years.push(y);
   years.forEach(y => { if (!invoiceData[y]) invoiceData[y] = {}; });
@@ -624,8 +623,8 @@ function buildYears(newConnectionYear) {
 
 let selectedYear = new Date().getFullYear();
 
-function renderYearFilter(newConnectionYear) {
-  const years = buildYears(newConnectionYear);
+function renderYearFilter(newConnectionDate, ncYear) {
+  const years = buildYears(ncYear);
   const container = document.getElementById('yearFilter');
   container.innerHTML = '';
 
@@ -647,14 +646,14 @@ function renderYearFilter(newConnectionYear) {
   select.className = 'year-select';
   years.forEach(y => {
     const opt = document.createElement('option');
-    opt.value = y;
+    opt.value = String(y);
     opt.textContent = y;
     if (y === selectedYear) opt.selected = true;
     select.appendChild(opt);
   });
   select.addEventListener('change', () => {
-    selectedYear = parseInt(select.value);
-    renderTable(newConnectionYear);
+    selectedYear = parseInt(select.value, 10);
+    renderTable(newConnectionDate);
   });
   rightWrap.appendChild(select);
   container.appendChild(rightWrap);
@@ -761,44 +760,60 @@ fetch('reshma.json')
     return res.json();
   })
   .then(data => {
-    // Customer name & ID
+    // Customer name & ID — show only the number, no label text
     document.getElementById('customerName').textContent = data.customerName || '—';
-    document.getElementById('customerId').textContent   =
-      data.customerId ? `Customer ID: ${data.customerId}` : '';
+    document.getElementById('customerId').textContent   = data.customerId || '';
 
     // Package
     document.getElementById('packageName').textContent   = data.packagePlan || '—';
+    const dur = data.planDurationDays || 30;
     document.getElementById('packageAmount').textContent =
       data.planAmount
-        ? `${data.currency === 'INR' ? '₹' : (data.currency || '')}${data.planAmount} / month`
+        ? `${data.currency === 'INR' ? '₹' : (data.currency || '')}${data.planAmount} (${dur} days)`
         : '—';
 
     // Renewal & Expiry
     const renewal = new Date(data.planRenewalDate);
     const expired = new Date(renewal);
-    expired.setDate(expired.getDate() + (data.planDurationDays || 29));
+    expired.setDate(expired.getDate() + dur);
 
     document.getElementById('renewalDate').textContent = fmtDate(renewal);
     document.getElementById('expiredDate').textContent = fmtDate(expired);
 
-    // Year filter & table — pass newConnectionDate so badge placement is correct
-    renderYearFilter(data.newConnectionDate);
+    // Days remaining
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    expired.setHours(0,0,0,0);
+    const diffMs   = expired - today;
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const drEl = document.getElementById('daysRemaining');
+    if (diffDays > 7) {
+      drEl.textContent = `${diffDays} days remaining`;
+      drEl.className = 'days-remaining days-green';
+    } else if (diffDays > 0) {
+      drEl.textContent = `${diffDays} day${diffDays === 1 ? '' : 's'} remaining`;
+      drEl.className = 'days-remaining days-orange';
+    } else if (diffDays === 0) {
+      drEl.textContent = 'Expires today';
+      drEl.className = 'days-remaining days-red';
+    } else {
+      drEl.textContent = `Expired ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'} ago`;
+      drEl.className = 'days-remaining days-red';
+    }
+
+    // Year filter & table
+    const ncYear = data.newConnectionDate ? new Date(data.newConnectionDate).getFullYear() : null;
+    renderYearFilter(data.newConnectionDate, ncYear);
     renderTable(data.newConnectionDate);
   })
   .catch(err => {
     console.error('Could not load reshma.json:', err);
     document.getElementById('customerName').textContent = 'Error loading data';
-    renderYearFilter();
-    renderTable();
+    renderYearFilter(null, null);
+    renderTable(null);
   });
 
-/* ══ HEADER ANIMATION ═══════════════════════════════════ */
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    document.querySelector('.railwire-block').classList.add('animate');
-    document.querySelector('.brand-block').classList.add('animate');
-  }, 1000);
-});
+/* ══ INIT FALLBACK ══════════════════════════════════════ */
 </script>
 </body>
 </html>
